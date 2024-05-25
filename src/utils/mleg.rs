@@ -5,7 +5,7 @@ use ark_std::log2;
 
 use super::vec::Matrix;
 
-pub fn vec_to_mle<G: CurveGroup>(n_vars: usize, v: &Vec<G>) -> DenseGroupMultilinearExtension<G> {
+pub fn group_vec_to_mle<G: CurveGroup>(n_vars: usize, v: &Vec<G>) -> DenseGroupMultilinearExtension<G> {
     // Pad to 2^n_vars
     let v_padded: Vec<G> = [
         v.clone(),

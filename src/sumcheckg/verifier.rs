@@ -6,10 +6,10 @@
 
 //! Verifier subroutines for a SumCheck protocol.
 
-use super::{SumCheckSubClaim, SumCheckVerifier};
-use crate::virtual_polynomial::VPAuxInfo;
-use ark_ff::PrimeField;
-use ark_std::{end_timer, start_timer};
+use super::{GroupSumCheckSubClaim, GroupSumCheckVerifier};
+use crate::virtual_group_polynomial::VPAuxInfo;
+use ark_ec::CurveGroup;
+use ark_std::{One, end_timer, start_timer};
 
 use super::structs::{IOPProverMessage, IOPVerifierState};
 use subroutines::poly_iop::prelude::PolyIOPErrors;
@@ -18,12 +18,12 @@ use transcript::IOPTranscript;
 #[cfg(feature = "parallel")]
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
-impl<F: PrimeField> SumCheckVerifier<F> for IOPVerifierState<F> {
-    type VPAuxInfo = VPAuxInfo<F>;
-    type ProverMessage = IOPProverMessage<F>;
-    type Challenge = F;
-    type Transcript = IOPTranscript<F>;
-    type SumCheckSubClaim = SumCheckSubClaim<F>;
+impl<G: CurveGroup> GroupSumCheckVerifier<G> for IOPVerifierState<G> {
+    type VPAuxInfo = VPAuxInfo<G>;
+    type ProverMessage = IOPProverMessage<G>;
+    type Challenge = G::ScalarField;
+    type Transcript = IOPTranscript<G::ScalarField>;
+    type SumCheckSubClaim = GroupSumCheckSubClaim<G>;
 
     /// Initialize the verifier's state.
     fn verifier_init(index_info: &Self::VPAuxInfo) -> Self {
@@ -95,7 +95,7 @@ impl<F: PrimeField> SumCheckVerifier<F> for IOPVerifierState<F> {
     /// Larger field size guarantees smaller soundness error.
     fn check_and_generate_subclaim(
         &self,
-        asserted_sum: &F,
+        asserted_sum: &G,
     ) -> Result<Self::SumCheckSubClaim, PolyIOPErrors> {
         let start = start_timer!(|| "sum check check and generate subclaim");
         if !self.finished {
@@ -126,7 +126,7 @@ impl<F: PrimeField> SumCheckVerifier<F> for IOPVerifierState<F> {
                         self.max_degree + 1
                     )));
                 }
-                interpolate_uni_poly::<F>(&evaluations, challenge)
+                interpolate_uni_poly::<G>(&evaluations, challenge)
             })
             .collect::<Result<Vec<_>, PolyIOPErrors>>()?;
 
@@ -160,14 +160,13 @@ impl<F: PrimeField> SumCheckVerifier<F> for IOPVerifierState<F> {
             // the deferred check during the interactive phase:
             // 1. check if the received 'P(0) + P(1) = expected`.
             if evaluations[0] + evaluations[1] != expected {
-                println!("evaluations: {:?}, expected: {:?}", evaluations[0] + evaluations[1], expected);
                 return Err(PolyIOPErrors::InvalidProof(
                     "Prover message is not consistent with the claim.".to_string(),
                 ));
             }
         }
         end_timer!(start);
-        Ok(SumCheckSubClaim {
+        Ok(GroupSumCheckSubClaim {
             point: self.challenges.clone(),
             // the last expected value (not checked within this function) will be included in the
             // subclaim
@@ -186,7 +185,7 @@ impl<F: PrimeField> SumCheckVerifier<F> for IOPVerifierState<F> {
 /// negligible compared to field operations.
 /// TODO: The quadratic term can be removed by precomputing the lagrange
 /// coefficients.
-pub fn interpolate_uni_poly<F: PrimeField>(p_i: &[F], eval_at: F) -> Result<F, PolyIOPErrors> {
+pub fn interpolate_uni_poly<G: CurveGroup>(p_i: &[G], eval_at: G::ScalarField) -> Result<G, PolyIOPErrors> {
     let start = start_timer!(|| "sum check interpolate uni poly opt");
 
     let len = p_i.len();
@@ -196,11 +195,11 @@ pub fn interpolate_uni_poly<F: PrimeField>(p_i: &[F], eval_at: F) -> Result<F, P
 
     // `prod = \prod_{j} (eval_at - j)`
     for e in 1..len {
-        let tmp = eval_at - F::from(e as u64);
+        let tmp = eval_at - G::ScalarField::from(e as u64);
         evals.push(tmp);
         prod *= tmp;
     }
-    let mut res = F::zero();
+    let mut res = G::zero();
     // we want to compute \prod (j!=i) (i-j) for a given i
     //
     // we start from the last step, which is
@@ -227,19 +226,18 @@ pub fn interpolate_uni_poly<F: PrimeField>(p_i: &[F], eval_at: F) -> Result<F, P
     //  - for len <= 33 with i128
     //  - for len >  33 with BigInt
     if p_i.len() <= 20 {
-        let last_denominator = F::from(u64_factorial(len - 1));
+        let last_denominator = G::ScalarField::from(u64_factorial(len - 1));
         let mut ratio_numerator = 1i64;
         let mut ratio_denominator = 1u64;
 
         for i in (0..len).rev() {
             let ratio_numerator_f = if ratio_numerator < 0 {
-                -F::from((-ratio_numerator) as u64)
+                -G::ScalarField::from((-ratio_numerator) as u64)
             } else {
-                F::from(ratio_numerator as u64)
+                G::ScalarField::from(ratio_numerator as u64)
             };
 
-            res += p_i[i] * prod * F::from(ratio_denominator)
-                / (last_denominator * ratio_numerator_f * evals[i]);
+            res += p_i[i].mul(prod * G::ScalarField::from(ratio_denominator) / (last_denominator * ratio_numerator_f * evals[i]));
 
             // compute denom for the next step is current_denom * (len-i)/i
             if i != 0 {
@@ -248,19 +246,18 @@ pub fn interpolate_uni_poly<F: PrimeField>(p_i: &[F], eval_at: F) -> Result<F, P
             }
         }
     } else if p_i.len() <= 33 {
-        let last_denominator = F::from(u128_factorial(len - 1));
+        let last_denominator = G::ScalarField::from(u128_factorial(len - 1));
         let mut ratio_numerator = 1i128;
         let mut ratio_denominator = 1u128;
 
         for i in (0..len).rev() {
             let ratio_numerator_f = if ratio_numerator < 0 {
-                -F::from((-ratio_numerator) as u128)
+                -G::ScalarField::from((-ratio_numerator) as u128)
             } else {
-                F::from(ratio_numerator as u128)
+                G::ScalarField::from(ratio_numerator as u128)
             };
 
-            res += p_i[i] * prod * F::from(ratio_denominator)
-                / (last_denominator * ratio_numerator_f * evals[i]);
+            res += p_i[i].mul(prod * G::ScalarField::from(ratio_denominator) / (last_denominator * ratio_numerator_f * evals[i]));
 
             // compute denom for the next step is current_denom * (len-i)/i
             if i != 0 {
@@ -269,16 +266,16 @@ pub fn interpolate_uni_poly<F: PrimeField>(p_i: &[F], eval_at: F) -> Result<F, P
             }
         }
     } else {
-        let mut denom_up = field_factorial::<F>(len - 1);
-        let mut denom_down = F::one();
+        let mut denom_up = field_factorial::<G>(len - 1);
+        let mut denom_down = G::ScalarField::one();
 
         for i in (0..len).rev() {
-            res += p_i[i] * prod * denom_down / (denom_up * evals[i]);
+            res += p_i[i].mul(prod * denom_down / (denom_up * evals[i]));
 
             // compute denom for the next step is current_denom * (len-i)/i
             if i != 0 {
-                denom_up *= -F::from((len - i) as u64);
-                denom_down *= F::from(i as u64);
+                denom_up *= -G::ScalarField::from((len - i) as u64);
+                denom_down *= G::ScalarField::from(i as u64);
             }
         }
     }
@@ -288,10 +285,10 @@ pub fn interpolate_uni_poly<F: PrimeField>(p_i: &[F], eval_at: F) -> Result<F, P
 
 /// compute the factorial(a) = 1 * 2 * ... * a
 #[inline]
-fn field_factorial<F: PrimeField>(a: usize) -> F {
-    let mut res = F::one();
+fn field_factorial<G: CurveGroup>(a: usize) -> G::ScalarField {
+    let mut res = G::ScalarField::one();
     for i in 2..=a {
-        res *= F::from(i as u64);
+        res *= G::ScalarField::from(i as u64);
     }
     res
 }

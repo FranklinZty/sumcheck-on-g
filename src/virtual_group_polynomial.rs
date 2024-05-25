@@ -10,7 +10,7 @@
 use super::errors::ArithErrors;
 use ark_ec::CurveGroup;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension};
-// use my_poly::evaluations::multivariate::multilinear::{DenseGroupMultilinearExtension, GroupMultilinearExtension};
+use my_poly::evaluations::multivariate::multilinear::{DenseGroupMultilinearExtension, GroupMultilinearExtension};
 use ark_serialize::CanonicalSerialize;
 use ark_std::{end_timer, start_timer, Zero, One};
 use rayon::prelude::*;
@@ -123,7 +123,6 @@ impl<G: CurveGroup> VirtualGroupPolynomial<G> {
             raw_pointers_lookup_table: hm,
         }
     }
-
     /// Add a product of list of multilinear extensions to self
     /// Returns an error if the list is empty, or the MLE has a different
     /// `num_vars` from self.
