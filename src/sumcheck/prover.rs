@@ -11,9 +11,9 @@ use crate::multilinear_polynomial::fix_variables;
 use crate::virtual_polynomial::VirtualPolynomial;
 use ark_ff::{batch_inversion, PrimeField};
 use ark_poly::DenseMultilinearExtension;
-use ark_std::{cfg_into_iter, end_timer, start_timer, vec::Vec, UniformRand};
-use rayon::prelude::*;
-use std::{iter::Sum, sync::Arc};
+use ark_std::{cfg_into_iter, end_timer, start_timer, vec::Vec};
+use rayon::prelude::{IntoParallelIterator, IntoParallelRefIterator};
+use std::sync::Arc;
 
 use super::structs::{IOPProverMessage, IOPProverState};
 use subroutines::poly_iop::prelude::PolyIOPErrors;
@@ -101,7 +101,6 @@ impl<F: PrimeField> SumCheckProver<F> for IOPProverState<F> {
             flattened_ml_extensions
                 .par_iter_mut()
                 .for_each(|mle| *mle = fix_variables(mle, &[r]));
-
             // #[cfg(not(feature = "parallel"))]
             // flattened_ml_extensions
             //     .iter_mut()
@@ -118,6 +117,9 @@ impl<F: PrimeField> SumCheckProver<F> for IOPProverState<F> {
         let products_list = self.poly.products.clone();
         let mut products_sum = vec![F::zero(); self.poly.aux_info.max_degree + 1];
 
+        // Step 2: generate sum for the partial evaluated polynomial:
+        // f(r_1, ... r_m,, x_{m+1}... x_n)
+
         products_list.iter().for_each(|(coefficient, products)| {
             let mut sum = cfg_into_iter!(0..1 << (self.poly.aux_info.num_variables - self.round))
                 .fold(
@@ -127,7 +129,7 @@ impl<F: PrimeField> SumCheckProver<F> for IOPProverState<F> {
                             vec![F::zero(); products.len() + 1],
                         )
                     },
-                    |(mut buf, mut acc), b: usize| {
+                    |(mut buf, mut acc), b| {
                         buf.iter_mut()
                             .zip(products.iter())
                             .for_each(|((eval, step), f)| {
@@ -153,7 +155,7 @@ impl<F: PrimeField> SumCheckProver<F> for IOPProverState<F> {
                         sum
                     },
                 );
-                sum.iter_mut().for_each(|sum| *sum *= coefficient);
+            sum.iter_mut().for_each(|sum| *sum *= coefficient);
             let extraploation = cfg_into_iter!(0..self.poly.aux_info.max_degree - products.len())
                 .map(|i| {
                     let (points, weights) = &self.extrapolation_aux[products.len() - 1];

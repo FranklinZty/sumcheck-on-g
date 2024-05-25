@@ -6,7 +6,7 @@
 
 //! This module implements the sum check protocol.
 
-use crate::virtual_group_polynomial::{VPAuxInfo, VirtualGroupPolynomial};
+use crate::virtual_group_polynomial::{VGPAuxInfo, VirtualGroupPolynomial};
 use ark_ec::CurveGroup;
 use my_poly::evaluations::multivariate::multilinear::DenseGroupMultilinearExtension;
 use ark_std::{end_timer, start_timer};
@@ -131,7 +131,7 @@ pub struct GroupSumCheckSubClaim<G:CurveGroup> {
 impl<G: CurveGroup> GroupSumCheck<G> for PolyIOP<G::ScalarField> {
     type GroupSumCheckProof = IOPProof<G>;
     type VirtualGroupPolynomial = VirtualGroupPolynomial<G>;
-    type VPAuxInfo = VPAuxInfo<G>;
+    type VPAuxInfo = VGPAuxInfo<G>;
     type GroupMultilinearExtension = Arc<DenseGroupMultilinearExtension<G>>;
     type GroupSumCheckSubClaim = GroupSumCheckSubClaim<G>;
     type Transcript = IOPTranscript<G::ScalarField>;

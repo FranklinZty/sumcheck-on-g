@@ -7,7 +7,7 @@
 //! Verifier subroutines for a SumCheck protocol.
 
 use super::{GroupSumCheckSubClaim, GroupSumCheckVerifier};
-use crate::virtual_group_polynomial::VPAuxInfo;
+use crate::virtual_group_polynomial::VGPAuxInfo;
 use ark_ec::CurveGroup;
 use ark_std::{One, end_timer, start_timer};
 
@@ -19,7 +19,7 @@ use transcript::IOPTranscript;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
 impl<G: CurveGroup> GroupSumCheckVerifier<G> for IOPVerifierState<G> {
-    type VPAuxInfo = VPAuxInfo<G>;
+    type VPAuxInfo = VGPAuxInfo<G>;
     type ProverMessage = IOPProverMessage<G>;
     type Challenge = G::ScalarField;
     type Transcript = IOPTranscript<G::ScalarField>;
@@ -126,7 +126,7 @@ impl<G: CurveGroup> GroupSumCheckVerifier<G> for IOPVerifierState<G> {
                         self.max_degree + 1
                     )));
                 }
-                interpolate_uni_poly::<G>(&evaluations, challenge)
+                interpolate_uni_group_poly::<G>(&evaluations, challenge)
             })
             .collect::<Result<Vec<_>, PolyIOPErrors>>()?;
 
@@ -144,7 +144,7 @@ impl<G: CurveGroup> GroupSumCheckVerifier<G> for IOPVerifierState<G> {
                         self.max_degree + 1
                     )));
                 }
-                interpolate_uni_poly::<F>(&evaluations, challenge)
+                interpolate_uni_group_poly::<F>(&evaluations, challenge)
             })
             .collect::<Result<Vec<_>, PolyIOPErrors>>()?;
 
@@ -185,7 +185,7 @@ impl<G: CurveGroup> GroupSumCheckVerifier<G> for IOPVerifierState<G> {
 /// negligible compared to field operations.
 /// TODO: The quadratic term can be removed by precomputing the lagrange
 /// coefficients.
-pub fn interpolate_uni_poly<G: CurveGroup>(p_i: &[G], eval_at: G::ScalarField) -> Result<G, PolyIOPErrors> {
+pub fn interpolate_uni_group_poly<G: CurveGroup>(p_i: &[G], eval_at: G::ScalarField) -> Result<G, PolyIOPErrors> {
     let start = start_timer!(|| "sum check interpolate uni poly opt");
 
     let len = p_i.len();
@@ -316,7 +316,7 @@ fn u64_factorial(a: usize) -> u64 {
 /*
 #[cfg(test)]
 mod test {
-    use super::interpolate_uni_poly;
+    use super::interpolate_uni_group_poly;
     use crate::poly_iop::errors::PolyIOPErrors;
     use ark_bls12_381::Fr;
     use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, Polynomial};
@@ -333,7 +333,7 @@ mod test {
             .collect::<Vec<Fr>>();
         let query = Fr::rand(&mut prng);
 
-        assert_eq!(poly.evaluate(&query), interpolate_uni_poly(&evals, query)?);
+        assert_eq!(poly.evaluate(&query), interpolate_uni_group_poly(&evals, query)?);
 
         // test a polynomial with 33 known points, i.e., with degree 32
         let poly = DensePolynomial::<Fr>::rand(33 - 1, &mut prng);
@@ -342,7 +342,7 @@ mod test {
             .collect::<Vec<Fr>>();
         let query = Fr::rand(&mut prng);
 
-        assert_eq!(poly.evaluate(&query), interpolate_uni_poly(&evals, query)?);
+        assert_eq!(poly.evaluate(&query), interpolate_uni_group_poly(&evals, query)?);
 
         // test a polynomial with 64 known points, i.e., with degree 63
         let poly = DensePolynomial::<Fr>::rand(64 - 1, &mut prng);
@@ -351,7 +351,7 @@ mod test {
             .collect::<Vec<Fr>>();
         let query = Fr::rand(&mut prng);
 
-        assert_eq!(poly.evaluate(&query), interpolate_uni_poly(&evals, query)?);
+        assert_eq!(poly.evaluate(&query), interpolate_uni_group_poly(&evals, query)?);
 
         Ok(())
     }

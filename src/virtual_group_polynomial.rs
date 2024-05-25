@@ -46,7 +46,7 @@ use std::{cmp::max, collections::HashMap, marker::PhantomData, ops::Add, sync::A
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct VirtualGroupPolynomial<G: CurveGroup> {
     /// Aux information about the multilinear polynomial
-    pub aux_info: VPAuxInfo<G>,
+    pub aux_info: VGPAuxInfo<G>,
     /// list of reference to products (as usize) of multilinear extension
     pub products: Vec<(G, Vec<usize>)>,
     /// Stores multilinear extensions in which product multiplicand can refer
@@ -58,7 +58,7 @@ pub struct VirtualGroupPolynomial<G: CurveGroup> {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, CanonicalSerialize)]
 /// Auxiliary information about the multilinear polynomial
-pub struct VPAuxInfo<G: CurveGroup> {
+pub struct VGPAuxInfo<G: CurveGroup> {
     /// max number of multiplicands in each product
     pub max_degree: usize,
     /// number of variables of the polynomial
@@ -93,7 +93,7 @@ impl<G: CurveGroup> VirtualGroupPolynomial<G> {
     /// Creates an empty virtual polynomial with `num_variables`.
     pub fn new(num_variables: usize) -> Self {
         VirtualGroupPolynomial {
-            aux_info: VPAuxInfo {
+            aux_info: VGPAuxInfo {
                 max_degree: 0,
                 num_variables,
                 phantom: PhantomData::default(),
@@ -111,7 +111,7 @@ impl<G: CurveGroup> VirtualGroupPolynomial<G> {
         hm.insert(mle_ptr, 0);
 
         VirtualGroupPolynomial {
-            aux_info: VPAuxInfo {
+            aux_info: VGPAuxInfo {
                 // The max degree is the max degree of any individual variable
                 max_degree: 1,
                 num_variables: mle.num_vars,
