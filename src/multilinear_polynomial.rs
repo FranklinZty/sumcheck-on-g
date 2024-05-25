@@ -72,6 +72,43 @@ fn fix_variables_no_par<F: Field>(
     DenseMultilinearExtension::from_evaluations_slice(nv - dim, &poly[..(1 << (nv - dim))])
 }
 
+pub fn fix_last_variables<F: Field>(
+    poly: &DenseMultilinearExtension<F>,
+    partial_point: &[F],
+) -> DenseMultilinearExtension<F> {
+    assert!(
+        partial_point.len() <= poly.num_vars,
+        "invalid size of partial point"
+    );
+    let nv = poly.num_vars;
+    let mut poly = poly.evaluations.to_vec();
+    let dim = partial_point.len();
+    // evaluate single variable of partial point from left to right
+    for (i, point) in partial_point.iter().rev().enumerate().take(dim) {
+        poly = fix_last_variable_helper(&poly, nv - i, point);
+    }
+
+    DenseMultilinearExtension::<F>::from_evaluations_slice(nv - dim, &poly[..(1 << (nv - dim))])
+}
+
+fn fix_last_variable_helper<F: Field>(data: &[F], nv: usize, point: &F) -> Vec<F> {
+    let half_len = 1 << (nv - 1);
+    let mut res = vec![F::zero(); half_len];
+
+    // evaluate single variable of partial point from left to right
+    #[cfg(not(feature = "parallel"))]
+    for b in 0..half_len {
+        res[b] = data[b] + (data[b + half_len] - data[b]) * point;
+    }
+
+    #[cfg(feature = "parallel")]
+    res.par_iter_mut().enumerate().for_each(|(i, x)| {
+        *x = data[i] + (data[i + half_len] - data[i]) * point;
+    });
+
+    res
+}
+
 /// Given multilinear polynomial `p(x)` and s `s`, compute `s*p(x)`
 pub fn scalar_mul<F: Field>(
     poly: &DenseMultilinearExtension<F>,
@@ -91,43 +128,6 @@ pub mod testing_code {
     use ark_std::rand::RngCore;
     use ark_std::{end_timer, start_timer};
     use std::sync::Arc;
-
-    pub fn fix_last_variables<F: PrimeField>(
-        poly: &DenseMultilinearExtension<F>,
-        partial_point: &[F],
-    ) -> DenseMultilinearExtension<F> {
-        assert!(
-            partial_point.len() <= poly.num_vars,
-            "invalid size of partial point"
-        );
-        let nv = poly.num_vars;
-        let mut poly = poly.evaluations.to_vec();
-        let dim = partial_point.len();
-        // evaluate single variable of partial point from left to right
-        for (i, point) in partial_point.iter().rev().enumerate().take(dim) {
-            poly = fix_last_variable_helper(&poly, nv - i, point);
-        }
-
-        DenseMultilinearExtension::<F>::from_evaluations_slice(nv - dim, &poly[..(1 << (nv - dim))])
-    }
-
-    fn fix_last_variable_helper<F: Field>(data: &[F], nv: usize, point: &F) -> Vec<F> {
-        let half_len = 1 << (nv - 1);
-        let mut res = vec![F::zero(); half_len];
-
-        // evaluate single variable of partial point from left to right
-        #[cfg(not(feature = "parallel"))]
-        for b in 0..half_len {
-            res[b] = data[b] + (data[b + half_len] - data[b]) * point;
-        }
-
-        #[cfg(feature = "parallel")]
-        res.par_iter_mut().enumerate().for_each(|(i, x)| {
-            *x = data[i] + (data[i + half_len] - data[i]) * point;
-        });
-
-        res
-    }
 
     /// Sample a random list of multilinear polynomials.
     /// Returns
