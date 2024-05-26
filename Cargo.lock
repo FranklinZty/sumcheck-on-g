@@ -585,6 +585,7 @@ dependencies = [
  "ark-poly",
  "ark-serialize",
  "ark-std",
+ "ark-test-curves",
  "displaydoc",
  "my_poly",
  "rand",
