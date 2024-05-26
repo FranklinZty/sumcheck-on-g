@@ -1,6 +1,5 @@
 # Compressed Sigma Protocol from Sumcheck
 This is a proof-of-concept implementation of a compressed sigma protocol from sumchecks.
-
 The protocol take k instances, each with m-length witnesses satisfying d-degree polynomil relation h.
 
 ## Sumcheck on Group
