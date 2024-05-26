@@ -27,8 +27,8 @@ use std::marker::PhantomData;
 use rand::Rng;
 
 // x, y dimensions M(x,y) - k times m matrix
-const num_x:usize = 3;
-const num_y:usize = 3;
+const num_x:usize = 8;
+const num_y:usize = 8;
 // degrees for f(x) and g(y)
 const deg_x:usize = 1;
 const deg_y:usize = 2;
@@ -212,11 +212,10 @@ fn sumcheck_on_G(
     let M_y_virtual =
     VirtualGroupPolynomial::new_from_mle(&Arc::new(M_y_mle.clone()), g);
 
-    let eval = M_y_virtual.evaluate(&r_x);
-
     let mut GM_y_virtual= M_y_virtual.clone();
     GM_y_virtual.mul_by_mle(Arc::new(G_y_mle.clone()), Fr::one()).unwrap();
-
+    let eval = GM_y_virtual.evaluate(&r_x);
+    
     let sumcheck_proof_y =
             <PolyIOP<Fr> as GroupSumCheck<G1Projective>>::prove(&GM_y_virtual, & mut transcript).unwrap();
     let r_y = sumcheck_proof_y.point.clone();
